@@ -305,6 +305,105 @@
     $("zengin-results").scrollIntoView({ behavior: "smooth" });
   }
 
+  // ===== タブ3: 給与明細整理 =====
+  let payrollFile = null;
+  const TARGET_LABELS = ["基本給", "割増賃金合計", "通勤手当（非課税）"];
+
+  setupUploadZone("zone-payroll", "payroll-upload", (f) => {
+    payrollFile = f;
+    markFileSelected("zone-payroll", "payroll-info", f);
+    $("payroll-run-btn").disabled = false;
+    $("payroll-results").classList.add("hidden");
+  });
+
+  $("payroll-run-btn").addEventListener("click", async () => {
+    $("payroll-results").classList.add("hidden");
+    $("payroll-error").classList.add("hidden");
+    $("payroll-spinner").classList.remove("hidden");
+    $("payroll-run-btn").disabled = true;
+
+    const form = new FormData();
+    form.append("payroll_file", payrollFile);
+
+    let data;
+    try {
+      const res = await fetch("/api/payroll-summary", { method: "POST", body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      data = await res.json();
+    } catch (e) {
+      const banner = $("payroll-error");
+      banner.textContent = "エラー: " + e.message;
+      banner.classList.remove("hidden");
+      return;
+    } finally {
+      $("payroll-spinner").classList.add("hidden");
+      $("payroll-run-btn").disabled = false;
+    }
+
+    renderPayrollResults(data);
+  });
+
+  function renderPayrollResults(data) {
+    // 見つからなかった列の警告
+    const warnEl = $("payroll-missing-warn");
+    if (data.missing_columns.length > 0) {
+      warnEl.textContent = "⚠️ 以下の列が見つからず集計できませんでした: "
+        + data.missing_columns.join("、");
+      warnEl.classList.remove("hidden");
+    } else {
+      warnEl.classList.add("hidden");
+    }
+
+    const cols = data.detected_columns;
+
+    // ヘッダ構築
+    $("payroll-table-head").innerHTML =
+      `<tr><th>勤務・賃金設定</th><th class="num">人数</th>` +
+      TARGET_LABELS.map((lbl) =>
+        `<th class="num${cols.includes(lbl) ? "" : " col-missing"}">${escHtml(lbl)}</th>`
+      ).join("") +
+      `</tr>`;
+
+    // 合計計算
+    const totals = {};
+    TARGET_LABELS.forEach((lbl) => { totals[lbl] = 0; });
+    let totalCount = 0;
+
+    // データ行
+    const tbody = data.groups.map((g) => {
+      totalCount += g.employee_count;
+      TARGET_LABELS.forEach((lbl) => { totals[lbl] += g.amounts[lbl] ?? 0; });
+      return `<tr>
+        <td>${escHtml(g.employee_type)}</td>
+        <td class="num">${g.employee_count}</td>
+        ${TARGET_LABELS.map((lbl) => {
+          const v = g.amounts[lbl] ?? 0;
+          const na = !cols.includes(lbl);
+          return `<td class="num${na ? " col-missing" : ""}">${na ? "—" : "¥" + v.toLocaleString()}</td>`;
+        }).join("")}
+      </tr>`;
+    }).join("");
+
+    // 合計行
+    const totalRow = `<tr class="total-row">
+      <td><strong>合計</strong></td>
+      <td class="num"><strong>${totalCount}</strong></td>
+      ${TARGET_LABELS.map((lbl) => {
+        const na = !cols.includes(lbl);
+        return `<td class="num${na ? " col-missing" : ""}"><strong>${na ? "—" : "¥" + totals[lbl].toLocaleString()}</strong></td>`;
+      }).join("")}
+    </tr>`;
+
+    $("payroll-table-body").innerHTML = tbody + totalRow;
+
+    attachDownload("payroll-download-btn", data.csv_b64, data.filename);
+    $("payroll-results").classList.remove("hidden");
+    $("payroll-results").scrollIntoView({ behavior: "smooth" });
+  }
+
   // ===== ユーティリティ =====
   function showBanner(id, msg) {
     $("master-spinner").classList.add("hidden");

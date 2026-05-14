@@ -14,6 +14,7 @@ from src.employee_master import EmployeeMasterCreator
 from src.models.employee import BankInfo
 from src.parsers.expense_csv_parser import ExpenseCSVParser
 from src.parsers import zengin_writer
+from src.parsers import payroll_csv_parser
 
 app = FastAPI(title="バックオフィス管理ツール")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -205,6 +206,52 @@ def _parse_master_csv(path: str) -> list:
             "bank_info":       bank_info,
         })
     return result
+
+
+@app.post("/api/payroll-summary")
+async def payroll_summary(payroll_file: UploadFile = File(...)):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        tmp.write(await payroll_file.read())
+        tmp_path = tmp.name
+
+    try:
+        result = payroll_csv_parser.parse(tmp_path)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    finally:
+        os.unlink(tmp_path)
+
+    labels = [lbl for lbl, _ in payroll_csv_parser.TARGET_COLUMNS]
+
+    # CSV生成
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    header_row = ["勤務・賃金設定", "人数"] + result.detected_columns
+    writer.writerow(header_row)
+    totals_row: dict[str, int] = {lbl: 0 for lbl in result.detected_columns}
+    for g in result.groups:
+        row = [g.employee_type, g.employee_count] + [g.amounts.get(lbl, 0) for lbl in result.detected_columns]
+        writer.writerow(row)
+        for lbl in result.detected_columns:
+            totals_row[lbl] += g.amounts.get(lbl, 0)
+    writer.writerow(["合計", sum(g.employee_count for g in result.groups)] +
+                    [totals_row[lbl] for lbl in result.detected_columns])
+    csv_bytes = buf.getvalue().encode("utf-8-sig")
+
+    return {
+        "groups": [
+            {
+                "employee_type":  g.employee_type,
+                "employee_count": g.employee_count,
+                "amounts":        {lbl: g.amounts.get(lbl, 0) for lbl in labels},
+            }
+            for g in result.groups
+        ],
+        "detected_columns": result.detected_columns,
+        "missing_columns":  result.missing_columns,
+        "csv_b64":   base64.b64encode(csv_bytes).decode(),
+        "filename":  payroll_file.filename.replace(".csv", "") + "_給与集計.csv",
+    }
 
 
 if __name__ == "__main__":

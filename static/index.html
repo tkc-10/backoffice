@@ -18,6 +18,7 @@
     <div class="tab-nav-inner">
       <button class="tab-btn active" data-tab="master">従業員マスタ作成</button>
       <button class="tab-btn" data-tab="expense">経費精算集計</button>
+      <button class="tab-btn" data-tab="payroll">給与明細整理</button>
     </div>
   </nav>
 
@@ -241,6 +242,50 @@
             </div>
           </div>
         </section>
+      </section>
+    </div>
+
+    <!-- ========== タブ3: 給与明細整理 ========== -->
+    <div id="tab-payroll" class="tab-panel hidden">
+      <section class="card">
+        <h2><span class="step">1</span> 給与明細一覧CSVをアップロード</h2>
+        <div class="upload-grid upload-grid-single">
+          <div class="upload-zone" id="zone-payroll" data-target="payroll-upload">
+            <div class="upload-icon">📊</div>
+            <p class="upload-label">給与明細一覧 CSV</p>
+            <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.csv</span></p>
+            <input type="file" id="payroll-upload" accept=".csv" hidden>
+            <div class="file-info" id="payroll-info"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card action-card">
+        <button id="payroll-run-btn" class="btn-primary" disabled>
+          <span class="btn-icon">📋</span> 集計する
+        </button>
+      </section>
+
+      <div id="payroll-spinner" class="spinner hidden">
+        <div class="spinner-ring"></div><p>処理中...</p>
+      </div>
+      <div id="payroll-error" class="error-banner hidden"></div>
+
+      <section id="payroll-results" class="hidden">
+        <div id="payroll-missing-warn" class="warn-banner hidden"></div>
+
+        <div class="card">
+          <div class="table-header">
+            <h2><span class="step">2</span> 勤務・賃金設定別 集計</h2>
+            <button id="payroll-download-btn" class="btn-secondary">📥 CSVをダウンロード</button>
+          </div>
+          <div class="table-wrap">
+            <table id="payroll-table">
+              <thead id="payroll-table-head"></thead>
+              <tbody id="payroll-table-body"></tbody>
+            </table>
+          </div>
+        </div>
       </section>
     </div>
 

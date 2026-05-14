@@ -400,4 +400,18 @@ tr.total-row td {
   background: #f8fafc;
 }
 
+/* 列が見つからない場合 */
+.col-missing { color: #9ca3af; }
+
+/* 警告バナー（未検出列など） */
+.warn-banner {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: .875rem;
+  padding: .75rem 1rem;
+  margin-bottom: 1rem;
+}
+
 .hidden { display: none !important; }
