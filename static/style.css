@@ -1,3 +1,47 @@
+/* Tab navigation */
+.tab-nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 56px;
+  z-index: 9;
+}
+.tab-nav-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  display: flex;
+  gap: .25rem;
+}
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: .85rem 1.1rem;
+  font-size: .9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.tab-panel { display: block; }
+.tab-panel.hidden { display: none !important; }
+
+/* Single-column upload */
+.upload-grid-single { grid-template-columns: 1fr; max-width: 400px; }
+
+/* Right-align number cells */
+td.num, th.num { text-align: right; }
+
+/* Metrics 2-col variant */
+.metrics-grid-2 { grid-template-columns: repeat(2, 1fr); }
+
 :root {
   --bg: #f4f6f9;
   --surface: #ffffff;
@@ -297,5 +341,10 @@ tr:hover td { background: #f8fafc; }
 tr.unmatched td { background: #fffbeb; }
 tr.unmatched:hover td { background: #fef9c3; }
 td.empty { color: #d1d5db; }
+
+tr.total-row td {
+  border-top: 2px solid var(--border);
+  background: #f8fafc;
+}
 
 .hidden { display: none !important; }

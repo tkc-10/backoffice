@@ -14,80 +14,147 @@
     </div>
   </header>
 
+  <nav class="tab-nav">
+    <div class="tab-nav-inner">
+      <button class="tab-btn active" data-tab="master">従業員マスタ作成</button>
+      <button class="tab-btn" data-tab="expense">経費精算集計</button>
+    </div>
+  </nav>
+
   <main>
-    <section class="card">
-      <h2><span class="step">1</span> ファイルをアップロード</h2>
-      <div class="upload-grid">
-        <div class="upload-zone" id="zone-salary" data-target="salary">
-          <div class="upload-icon">📄</div>
-          <p class="upload-label">給与一覧 CSV</p>
-          <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.csv</span></p>
-          <input type="file" id="salary" accept=".csv" hidden>
-          <div class="file-info" id="salary-info"></div>
+
+    <!-- ========== タブ1: 従業員マスタ ========== -->
+    <div id="tab-master" class="tab-panel">
+      <section class="card">
+        <h2><span class="step">1</span> ファイルをアップロード</h2>
+        <div class="upload-grid">
+          <div class="upload-zone" id="zone-salary" data-target="salary">
+            <div class="upload-icon">📄</div>
+            <p class="upload-label">給与一覧 CSV</p>
+            <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.csv</span></p>
+            <input type="file" id="salary" accept=".csv" hidden>
+            <div class="file-info" id="salary-info"></div>
+          </div>
+          <div class="upload-zone" id="zone-zengin" data-target="zengin">
+            <div class="upload-icon">🏦</div>
+            <p class="upload-label">全銀データ</p>
+            <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.txt</span></p>
+            <input type="file" id="zengin" accept=".txt" hidden>
+            <div class="file-info" id="zengin-info"></div>
+          </div>
         </div>
-        <div class="upload-zone" id="zone-zengin" data-target="zengin">
-          <div class="upload-icon">🏦</div>
-          <p class="upload-label">全銀データ</p>
-          <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.txt</span></p>
-          <input type="file" id="zengin" accept=".txt" hidden>
-          <div class="file-info" id="zengin-info"></div>
-        </div>
+      </section>
+
+      <section class="card action-card">
+        <button id="run-btn" class="btn-primary" disabled>
+          <span class="btn-icon">✨</span> マスタを作成する
+        </button>
+      </section>
+
+      <div id="master-spinner" class="spinner hidden">
+        <div class="spinner-ring"></div><p>処理中...</p>
       </div>
-    </section>
+      <div id="master-error" class="error-banner hidden"></div>
 
-    <section class="card action-card">
-      <button id="run-btn" class="btn-primary" disabled>
-        <span class="btn-icon">✨</span> マスタを作成する
-      </button>
-    </section>
+      <section id="master-results" class="hidden">
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-value" id="m-total">—</div>
+            <div class="metric-label">総件数</div>
+          </div>
+          <div class="metric-card success">
+            <div class="metric-value" id="m-matched">—</div>
+            <div class="metric-label">突合成功</div>
+          </div>
+          <div class="metric-card" id="m-unmatched-card">
+            <div class="metric-value" id="m-unmatched">—</div>
+            <div class="metric-label">未突合</div>
+          </div>
+        </div>
 
-    <div id="spinner" class="spinner hidden">
-      <div class="spinner-ring"></div>
-      <p>処理中...</p>
+        <div id="warnings-section" class="card hidden">
+          <button class="warnings-toggle" id="warnings-toggle">
+            <span>⚠️ 警告・確認事項</span>
+            <span id="warnings-count" class="badge"></span>
+            <span class="toggle-arrow">▼</span>
+          </button>
+          <ul id="warnings-list" class="warnings-list hidden"></ul>
+        </div>
+
+        <div class="card">
+          <div class="table-header">
+            <h2><span class="step">2</span> マスタデータ</h2>
+            <button id="master-download-btn" class="btn-secondary">📥 CSVをダウンロード</button>
+          </div>
+          <div class="table-wrap">
+            <table id="master-table">
+              <thead id="master-table-head"></thead>
+              <tbody id="master-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
     </div>
 
-    <div id="error-banner" class="error-banner hidden"></div>
+    <!-- ========== タブ2: 経費精算集計 ========== -->
+    <div id="tab-expense" class="tab-panel hidden">
+      <section class="card">
+        <h2><span class="step">1</span> 経費精算CSVをアップロード</h2>
+        <div class="upload-grid upload-grid-single">
+          <div class="upload-zone" id="zone-expense" data-target="expense">
+            <div class="upload-icon">🧾</div>
+            <p class="upload-label">経費精算一覧 CSV</p>
+            <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.csv</span></p>
+            <input type="file" id="expense" accept=".csv" hidden>
+            <div class="file-info" id="expense-info"></div>
+          </div>
+        </div>
+      </section>
 
-    <section id="results" class="hidden">
-      <div class="metrics-grid">
-        <div class="metric-card">
-          <div class="metric-value" id="m-total">—</div>
-          <div class="metric-label">総件数</div>
-        </div>
-        <div class="metric-card success">
-          <div class="metric-value" id="m-matched">—</div>
-          <div class="metric-label">突合成功</div>
-        </div>
-        <div class="metric-card" id="m-unmatched-card">
-          <div class="metric-value" id="m-unmatched">—</div>
-          <div class="metric-label">未突合</div>
-        </div>
-      </div>
-
-      <div id="warnings-section" class="card hidden">
-        <button class="warnings-toggle" id="warnings-toggle">
-          <span>⚠️ 警告・確認事項</span>
-          <span id="warnings-count" class="badge"></span>
-          <span class="toggle-arrow">▼</span>
+      <section class="card action-card">
+        <button id="expense-run-btn" class="btn-primary" disabled>
+          <span class="btn-icon">📊</span> 集計する
         </button>
-        <ul id="warnings-list" class="warnings-list hidden"></ul>
-      </div>
+      </section>
 
-      <div class="card">
-        <div class="table-header">
-          <h2><span class="step">2</span> マスタデータ</h2>
-          <button id="download-btn" class="btn-secondary">
-            📥 CSVをダウンロード
-          </button>
-        </div>
-        <div class="table-wrap">
-          <table id="master-table">
-            <thead id="table-head"></thead>
-            <tbody id="table-body"></tbody>
-          </table>
-        </div>
+      <div id="expense-spinner" class="spinner hidden">
+        <div class="spinner-ring"></div><p>処理中...</p>
       </div>
-    </section>
+      <div id="expense-error" class="error-banner hidden"></div>
+
+      <section id="expense-results" class="hidden">
+        <div class="metrics-grid metrics-grid-2">
+          <div class="metric-card">
+            <div class="metric-value" id="e-people">—</div>
+            <div class="metric-label">対象人数</div>
+          </div>
+          <div class="metric-card success">
+            <div class="metric-value" id="e-total">—</div>
+            <div class="metric-label">合計精算額</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="table-header">
+            <h2><span class="step">2</span> 氏名別 精算額一覧</h2>
+            <button id="expense-download-btn" class="btn-secondary">📥 CSVをダウンロード</button>
+          </div>
+          <div class="table-wrap">
+            <table id="expense-table">
+              <thead>
+                <tr>
+                  <th>氏名</th>
+                  <th class="num">申請件数</th>
+                  <th class="num">合計精算額</th>
+                </tr>
+              </thead>
+              <tbody id="expense-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
   </main>
 
   <script src="/static/app.js"></script>

@@ -1,4 +1,6 @@
 import base64
+import csv
+import io
 import os
 import tempfile
 
@@ -7,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.employee_master import EmployeeMasterCreator
+from src.parsers.expense_csv_parser import ExpenseCSVParser
 
 app = FastAPI(title="バックオフィス管理ツール")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -51,6 +54,38 @@ async def create_master(
         "records": [r.to_dict() for r in records],
         "csv_b64": base64.b64encode(csv_bytes).decode(),
         "filename": salary_file.filename.replace(".csv", "") + "_マスタ.csv",
+    }
+
+
+@app.post("/api/expense-summary")
+async def expense_summary(expense_file: UploadFile = File(...)):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        tmp.write(await expense_file.read())
+        tmp_path = tmp.name
+
+    try:
+        rows = ExpenseCSVParser(tmp_path).parse()
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    finally:
+        os.unlink(tmp_path)
+
+    total_amount = sum(r.total_amount for r in rows)
+
+    # CSV生成
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["氏名", "申請件数", "合計精算額（円）"])
+    for r in rows:
+        writer.writerow([r.name, r.count, r.total_amount])
+    writer.writerow(["合計", sum(r.count for r in rows), total_amount])
+    csv_bytes = buf.getvalue().encode("utf-8-sig")
+
+    return {
+        "rows": [{"name": r.name, "count": r.count, "total_amount": r.total_amount} for r in rows],
+        "total_amount": total_amount,
+        "csv_b64": base64.b64encode(csv_bytes).decode(),
+        "filename": expense_file.filename.replace(".csv", "") + "_精算集計.csv",
     }
 
 
