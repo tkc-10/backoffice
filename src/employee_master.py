@@ -5,9 +5,10 @@
 従業員番号・氏名・振込口座情報を紐づけたマスタCSVを出力する。
 
 突合キー（優先順位順）:
-  1. 全銀データの顧客コード1 == 給与CSVの従業員番号
-  2. 全銀データの顧客コード2 == 給与CSVの従業員番号
-  3. 全銀データの受取人名（カナ）== 給与CSVの氏名カナ（手動確認推奨）
+  1. 全銀の顧客コード1 == 給与CSVの従業員番号
+  2. 全銀の顧客コード2 == 給与CSVの従業員番号
+  3. 全銀の受取人名カナ == 給与CSVの氏名カナ（カナ列がある場合）
+  4. 全銀の振込金額 == 給与CSVの差引支給額（金額が一意の場合のみ）
 """
 import csv
 import os
@@ -34,20 +35,17 @@ class EmployeeMasterCreator:
         self.zengin_encoding = zengin_encoding
 
     def create(self) -> Tuple[List[EmployeeMasterRecord], List[str]]:
-        """
-        マスタレコードのリストと、マッチできなかった行の警告メッセージを返す。
-        """
         salary_records = SalaryCSVParser(
             self.salary_csv_path,
             column_map=self.salary_column_map,
             encoding=self.salary_encoding,
         ).parse()
 
-        zengin_parser = ZenginParser(self.zengin_txt_path, encoding=self.zengin_encoding)
-        _, zengin_records, trailer = zengin_parser.parse()
+        _, zengin_records, trailer = ZenginParser(
+            self.zengin_txt_path, encoding=self.zengin_encoding
+        ).parse()
 
-        master_records, warnings = self._merge(salary_records, zengin_records)
-        return master_records, warnings
+        return self._merge(salary_records, zengin_records)
 
     def _merge(
         self,
@@ -56,45 +54,45 @@ class EmployeeMasterCreator:
     ) -> Tuple[List[EmployeeMasterRecord], List[str]]:
         warnings: List[str] = []
 
-        # 全銀レコードをインデックス化
-        # 顧客コード1 → ZenginDataRecord
-        by_customer_code1: dict[str, ZenginDataRecord] = {}
-        # 顧客コード2 → ZenginDataRecord
-        by_customer_code2: dict[str, ZenginDataRecord] = {}
-        # 受取人名カナ → ZenginDataRecord（複数あり得るのでリスト）
-        by_kana: dict[str, List[ZenginDataRecord]] = {}
+        # インデックス構築
+        by_code1: dict[str, ZenginDataRecord] = {}
+        by_code2: dict[str, ZenginDataRecord] = {}
+        by_kana:  dict[str, List[ZenginDataRecord]] = {}
+        by_amount: dict[int, List[ZenginDataRecord]] = {}
 
         for zr in zengin_records:
             if zr.customer_code1:
-                by_customer_code1[zr.customer_code1] = zr
+                by_code1[zr.customer_code1] = zr
             if zr.customer_code2:
-                by_customer_code2[zr.customer_code2] = zr
+                by_code2[zr.customer_code2] = zr
             if zr.account_holder_kana:
                 by_kana.setdefault(zr.account_holder_kana, []).append(zr)
+            if zr.transfer_amount > 0:
+                by_amount.setdefault(zr.transfer_amount, []).append(zr)
 
         master_records: List[EmployeeMasterRecord] = []
-        matched_zengin_keys: set[int] = set()
+        matched_ids: set[int] = set()
 
         for sr in salary_records:
             emp_num = sr.employee_number
             zengin_rec: Optional[ZenginDataRecord] = None
             match_method = ""
 
-            # 突合 1: 顧客コード1 == 従業員番号
-            if emp_num and emp_num in by_customer_code1:
-                zengin_rec = by_customer_code1[emp_num]
+            # 1. 顧客コード1
+            if emp_num and emp_num in by_code1:
+                zengin_rec = by_code1[emp_num]
                 match_method = "顧客コード1"
 
-            # 突合 2: 顧客コード2 == 従業員番号
-            elif emp_num and emp_num in by_customer_code2:
-                zengin_rec = by_customer_code2[emp_num]
+            # 2. 顧客コード2
+            elif emp_num and emp_num in by_code2:
+                zengin_rec = by_code2[emp_num]
                 match_method = "顧客コード2"
 
-            # 突合 3: 氏名カナ一致（ファジーマッチ）
+            # 3. 氏名カナ（カナ列がある場合）
             elif sr.name_kana:
-                kana_normalized = _normalize_kana(sr.name_kana)
+                norm = _normalize_kana(sr.name_kana)
                 for kana_key, zr_list in by_kana.items():
-                    if _normalize_kana(kana_key) == kana_normalized:
+                    if _normalize_kana(kana_key) == norm:
                         if len(zr_list) == 1:
                             zengin_rec = zr_list[0]
                             match_method = "氏名カナ（要確認）"
@@ -105,16 +103,26 @@ class EmployeeMasterCreator:
                             )
                         break
 
+            # 4. 振込金額（一意の場合のみ）
+            if zengin_rec is None and sr.net_pay > 0:
+                candidates = by_amount.get(sr.net_pay, [])
+                # まだ未マッチのものだけ
+                unmatched_candidates = [zr for zr in candidates if id(zr) not in matched_ids]
+                if len(unmatched_candidates) == 1:
+                    zengin_rec = unmatched_candidates[0]
+                    match_method = "振込金額（要確認）"
+
             if zengin_rec:
-                matched_zengin_keys.add(id(zengin_rec))
+                matched_ids.add(id(zengin_rec))
                 if "要確認" in match_method:
                     warnings.append(
-                        f"[要確認] 従業員「{sr.name}」（{emp_num}）を氏名カナで突合しました。"
+                        f"[要確認] 「{sr.name}」（{emp_num}）を{match_method}で突合しました。"
                         f" 口座番号: {zengin_rec.account_number}"
                     )
-            else:
+            elif sr.net_pay > 0:
+                # 支払いがあるのに口座が見つからない場合だけ警告
                 warnings.append(
-                    f"[未突合] 従業員「{sr.name}」（{emp_num}）の振込口座が見つかりません。"
+                    f"[未突合] 「{sr.name}」（{emp_num}）の振込口座が見つかりません。"
                 )
 
             master_records.append(
@@ -127,25 +135,22 @@ class EmployeeMasterCreator:
                 )
             )
 
-        # 全銀データのみにあるレコード（給与CSVに対応がないもの）
+        # 全銀データのみにある（給与CSV未掲載）レコード
         for zr in zengin_records:
-            if id(zr) not in matched_zengin_keys:
+            if id(zr) not in matched_ids:
                 warnings.append(
                     f"[未突合] 全銀データの受取人「{zr.account_holder_kana}」"
-                    f"（顧客コード1: {zr.customer_code1}）が給与CSVに見つかりません。"
+                    f"（顧客コード1: {zr.customer_code1 or '空'}）が給与CSVに見つかりません。"
                 )
 
         return master_records, warnings
 
-    def save(self, output_path: str, salary_column_map: Optional[dict] = None) -> Tuple[List[EmployeeMasterRecord], List[str]]:
-        """マスタを作成してCSVに保存する"""
+    def save(self, output_path: str) -> Tuple[List[EmployeeMasterRecord], List[str]]:
         master_records, warnings = self.create()
-
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
         with open(output_path, "w", encoding="utf-8-sig", newline="") as f:
             if not master_records:
-                f.write("")
                 return master_records, warnings
             writer = csv.DictWriter(f, fieldnames=list(master_records[0].to_dict().keys()))
             writer.writeheader()
@@ -156,8 +161,6 @@ class EmployeeMasterCreator:
 
 
 def _normalize_kana(text: str) -> str:
-    """全角カナ・半角カナの正規化（スペース除去・大文字化）"""
-    # 半角カナ → 全角カナ変換テーブル
     half_to_full = str.maketrans(
         "ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝﾞﾟ",
         "ヲァィゥェォャュョッーアイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン゛゜",
