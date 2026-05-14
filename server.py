@@ -16,7 +16,7 @@ from src.parsers.expense_csv_parser import ExpenseCSVParser
 from src.parsers import zengin_writer
 from src.parsers import payroll_csv_parser
 
-app = FastAPI(title="バックオフィス管理ツール")
+app = FastAPI(title="精算データ処理ツール")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
