@@ -96,9 +96,10 @@ async def expense_summary(expense_file: UploadFile = File(...)):
 
 @app.post("/api/expense-zengin")
 async def expense_zengin(
-    expense_file:   UploadFile = File(...),
-    master_file:    UploadFile = File(...),
+    expense_file:    UploadFile = File(...),
+    master_file:     UploadFile = File(...),
     zengin_ref_file: Optional[UploadFile] = File(default=None),
+    transfer_date:   Optional[str] = None,  # MMDD 形式（例: "0520"）
 ):
     with (
         tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as et,
@@ -157,6 +158,9 @@ async def expense_zengin(
             header_info = zengin_writer.extract_header_info(ref_path)
         finally:
             os.unlink(ref_path)
+
+    if transfer_date:
+        header_info["date"] = transfer_date
 
     zengin_bytes = zengin_writer.generate(zengin_records, header_info) if zengin_records else b""
 

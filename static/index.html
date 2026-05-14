@@ -194,9 +194,15 @@
         </section>
 
         <section class="card action-card">
-          <button id="zengin-run-btn" class="btn-primary" disabled>
-            <span class="btn-icon">🏦</span> 全銀データを生成する
-          </button>
+          <div class="action-row">
+            <div class="date-input-group">
+              <label for="zengin-date">振込日</label>
+              <input type="date" id="zengin-date">
+            </div>
+            <button id="zengin-run-btn" class="btn-primary" disabled>
+              <span class="btn-icon">🏦</span> 全銀データを生成する
+            </button>
+          </div>
         </section>
 
         <div id="zengin-spinner" class="spinner hidden">

@@ -382,6 +382,38 @@ td.empty { color: #d1d5db; }
   background: var(--border);
 }
 
+/* Action row: date + button inline */
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+.date-input-group {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  white-space: nowrap;
+}
+.date-input-group label {
+  font-size: .875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.date-input-group input[type="date"] {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: .9rem;
+  padding: .5rem .75rem;
+  color: var(--text);
+  background: var(--surface);
+  outline: none;
+  transition: border-color .15s;
+}
+.date-input-group input[type="date"]:focus {
+  border-color: var(--primary);
+}
+
 /* Upload note */
 .upload-note {
   font-size: .85rem;

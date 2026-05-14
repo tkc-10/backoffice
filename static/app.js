@@ -226,6 +226,12 @@
     form.append("expense_file", cachedExpenseFile);
     form.append("master_file", masterFile);
     if (zenginRefFile) form.append("zengin_ref_file", zenginRefFile);
+    const dateVal = $("zengin-date").value;  // "YYYY-MM-DD" or ""
+    if (dateVal) {
+      // 全銀フォーマットの取組日は MMDD
+      const [, mm, dd] = dateVal.split("-");
+      form.append("transfer_date", mm + dd);
+    }
 
     let data;
     try {
