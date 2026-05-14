@@ -9,7 +9,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.employee_master import EmployeeMasterCreator
+from src.models.employee import BankInfo
 from src.parsers.expense_csv_parser import ExpenseCSVParser
+from src.parsers import zengin_writer
 
 app = FastAPI(title="バックオフィス管理ツール")
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -87,6 +89,107 @@ async def expense_summary(expense_file: UploadFile = File(...)):
         "csv_b64": base64.b64encode(csv_bytes).decode(),
         "filename": expense_file.filename.replace(".csv", "") + "_精算集計.csv",
     }
+
+
+@app.post("/api/expense-zengin")
+async def expense_zengin(
+    expense_file: UploadFile = File(...),
+    master_file:  UploadFile = File(...),
+):
+    with (
+        tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as et,
+        tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as mt,
+    ):
+        et.write(await expense_file.read())
+        mt.write(await master_file.read())
+        expense_path, master_path = et.name, mt.name
+
+    try:
+        expense_rows = ExpenseCSVParser(expense_path).parse()
+        master_rows  = _parse_master_csv(master_path)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    finally:
+        os.unlink(expense_path)
+        os.unlink(master_path)
+
+    # 名前正規化（スペース除去）
+    def norm(s: str) -> str:
+        return s.replace(" ", "").replace("　", "")
+
+    master_by_name = {norm(r["name"]): r for r in master_rows}
+
+    matched, unmatched = [], []
+    zengin_records = []
+
+    for er in expense_rows:
+        key = norm(er.name)
+        mr = master_by_name.get(key)
+        if mr and mr["bank_info"]:
+            matched.append({
+                "name":         er.name,
+                "count":        er.count,
+                "total_amount": er.total_amount,
+                "account_tail": mr["bank_info"].account_number[-4:],
+                "bank_name":    mr["bank_info"].bank_name,
+            })
+            zengin_records.append((mr["bank_info"], er.total_amount, mr["employee_number"]))
+        else:
+            reason = "口座情報なし" if (mr and not mr["bank_info"]) else "マスタ未登録"
+            unmatched.append({
+                "name":         er.name,
+                "count":        er.count,
+                "total_amount": er.total_amount,
+                "reason":       reason,
+            })
+
+    zengin_bytes = zengin_writer.generate(zengin_records) if zengin_records else b""
+
+    return {
+        "matched":       matched,
+        "unmatched":     unmatched,
+        "total_amount":  sum(r["total_amount"] for r in matched),
+        "zengin_b64":    base64.b64encode(zengin_bytes).decode(),
+        "filename":      expense_file.filename.replace(".csv", "") + "_経費精算振込.txt",
+    }
+
+
+def _parse_master_csv(path: str) -> list:
+    """従業員マスタCSV（タブ1の出力）を読み込む"""
+    ACCOUNT_LABEL = {"普通": "1", "当座": "2", "貯蓄": "4"}
+    for enc in ["utf-8-sig", "utf-8", "cp932"]:
+        try:
+            with open(path, encoding=enc, newline="") as f:
+                rows = list(csv.DictReader(f))
+            break
+        except (UnicodeDecodeError, LookupError):
+            continue
+    else:
+        raise ValueError("マスタCSVのエンコーディングを判定できませんでした")
+
+    result = []
+    for row in rows:
+        bank_code = (row.get("金融機関コード") or "").strip()
+        acct_num  = (row.get("口座番号") or "").strip()
+        bank_info = BankInfo(
+            bank_code=bank_code,
+            bank_name=(row.get("金融機関名") or "").strip(),
+            branch_code=(row.get("支店コード") or "").strip(),
+            branch_name=(row.get("支店名") or "").strip(),
+            account_type=ACCOUNT_LABEL.get(
+                (row.get("預金種目") or "").strip(),
+                (row.get("預金種目") or "1").strip()
+            ),
+            account_number=acct_num,
+            account_holder_kana=(row.get("受取人名（カナ）") or "").strip(),
+        ) if bank_code and acct_num else None
+
+        result.append({
+            "employee_number": (row.get("従業員番号") or "").strip(),
+            "name":            (row.get("氏名") or "").strip(),
+            "bank_info":       bank_info,
+        })
+    return result
 
 
 if __name__ == "__main__":

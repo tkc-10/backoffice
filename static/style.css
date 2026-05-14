@@ -342,6 +342,39 @@ tr.unmatched td { background: #fffbeb; }
 tr.unmatched:hover td { background: #fef9c3; }
 td.empty { color: #d1d5db; }
 
+/* Step divider */
+.step-divider {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin: 2rem 0 1.25rem;
+  color: var(--text-muted);
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.step-divider::before,
+.step-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* Upload note */
+.upload-note {
+  font-size: .85rem;
+  color: var(--text-muted);
+  margin: -.25rem 0 1rem;
+}
+
+/* Metrics 3-col */
+.metrics-grid-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* Center-align cell */
+td.center, th.center { text-align: center; }
+
 tr.total-row td {
   border-top: 2px solid var(--border);
   background: #f8fafc;

@@ -126,6 +126,11 @@
     expenseFile = f;
     markFileSelected("zone-expense", "expense-info", f);
     $("expense-run-btn").disabled = false;
+    // 新しいファイルに差し替えたらステップ3をリセット
+    $("zengin-section").classList.add("hidden");
+    $("zengin-results").classList.add("hidden");
+    masterFile = null;
+    cachedExpenseFile = null;
   });
 
   $("expense-run-btn").addEventListener("click", async () => {
@@ -176,6 +181,106 @@
     attachDownload("expense-download-btn", data.csv_b64, data.filename);
     $("expense-results").classList.remove("hidden");
     $("expense-results").scrollIntoView({ behavior: "smooth" });
+
+    // ステップ3を表示（経費ファイルをキャッシュして全銀生成に使う）
+    cachedExpenseFile = expenseFile;
+    masterFile = null;
+    $("master-info").textContent = "";
+    $("zone-master").classList.remove("has-file");
+    $("zengin-run-btn").disabled = true;
+    $("zengin-results").classList.add("hidden");
+    $("zengin-section").classList.remove("hidden");
+  }
+
+  // ===== タブ2ステップ3: 全銀データ生成 =====
+  let masterFile = null;
+  let cachedExpenseFile = null;  // 集計済みの経費ファイルを保持
+
+  setupUploadZone("zone-master", "master", (f) => {
+    masterFile = f;
+    markFileSelected("zone-master", "master-info", f);
+    $("zengin-run-btn").disabled = false;
+  });
+
+  $("zengin-run-btn").addEventListener("click", async () => {
+    $("zengin-results").classList.add("hidden");
+    $("zengin-error").classList.add("hidden");
+    $("zengin-spinner").classList.remove("hidden");
+    $("zengin-run-btn").disabled = true;
+
+    const form = new FormData();
+    form.append("expense_file", cachedExpenseFile);
+    form.append("master_file", masterFile);
+
+    let data;
+    try {
+      const res = await fetch("/api/expense-zengin", { method: "POST", body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: res.statusText }));
+        throw new Error(err.detail || res.statusText);
+      }
+      data = await res.json();
+    } catch (e) {
+      const banner = $("zengin-error");
+      banner.textContent = "エラー: " + e.message;
+      banner.classList.remove("hidden");
+      return;
+    } finally {
+      $("zengin-spinner").classList.add("hidden");
+      $("zengin-run-btn").disabled = false;
+    }
+
+    renderZenginResults(data);
+  });
+
+  function renderZenginResults(data) {
+    const matchedCount   = data.matched.length;
+    const unmatchedCount = data.unmatched.length;
+
+    $("z-matched").textContent   = matchedCount + " 人";
+    $("z-unmatched").textContent = unmatchedCount + " 人";
+    $("z-total").textContent     = "¥" + data.total_amount.toLocaleString();
+    $("z-unmatched-card").classList.toggle("danger", unmatchedCount > 0);
+
+    const rows = [
+      ...data.matched.map((r) => ({
+        name:         r.name,
+        count:        r.count,
+        total_amount: r.total_amount,
+        bank_name:    r.bank_name,
+        account_tail: r.account_tail,
+        ok:           true,
+      })),
+      ...data.unmatched.map((r) => ({
+        name:         r.name,
+        count:        r.count,
+        total_amount: r.total_amount,
+        bank_name:    r.reason,
+        account_tail: "—",
+        ok:           false,
+      })),
+    ];
+
+    $("zengin-table-body").innerHTML = rows.map((r) =>
+      `<tr class="${r.ok ? "" : "unmatched"}">
+        <td>${escHtml(r.name)}</td>
+        <td class="num">${r.count}</td>
+        <td class="num">¥${r.total_amount.toLocaleString()}</td>
+        <td>${escHtml(r.bank_name)}</td>
+        <td class="num">${escHtml(r.account_tail)}</td>
+        <td class="center">${r.ok ? "✅" : "❌"}</td>
+      </tr>`
+    ).join("");
+
+    if (data.zengin_b64) {
+      attachDownload("zengin-download-btn", data.zengin_b64, data.filename);
+      $("zengin-download-btn").disabled = false;
+    } else {
+      $("zengin-download-btn").disabled = true;
+    }
+
+    $("zengin-results").classList.remove("hidden");
+    $("zengin-results").scrollIntoView({ behavior: "smooth" });
   }
 
   // ===== ユーティリティ =====
