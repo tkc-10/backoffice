@@ -83,10 +83,19 @@ def parse(filepath: str) -> PayrollSummaryResult:
                 f"検出された列: {', '.join(headers)}"
             )
 
-        # 集計対象列を特定（エイリアス順に最初にヒットしたもの）
+        # 集計対象列を特定（エイリアス順、スペース・括弧の全半角を無視して照合）
+        def _normalize(s: str) -> str:
+            return (s.replace("　", "").replace(" ", "")
+                     .replace("（", "(").replace("）", ")")
+                     .lower())
+
+        norm_headers = {_normalize(h): h for h in headers}
         col_map: Dict[str, Optional[str]] = {}  # 表示名 → 実際の列名
         for label, aliases in TARGET_COLUMNS:
-            col_map[label] = next((h for a in aliases for h in headers if h == a), None)
+            col_map[label] = next(
+                (norm_headers[_normalize(a)] for a in aliases if _normalize(a) in norm_headers),
+                None,
+            )
 
         detected = [lbl for lbl, col in col_map.items() if col is not None]
         missing  = [lbl for lbl, col in col_map.items() if col is None]
