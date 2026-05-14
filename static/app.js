@@ -3,7 +3,6 @@
 
   // ===== 保存済みマスタ状態 =====
   let savedMasterExists = false;
-  let masterUploadOpen  = false;  // 「別のファイルを使う」展開状態
 
   async function loadMasterStatus() {
     try {
@@ -23,7 +22,9 @@
         });
         $("saved-master-detail").textContent =
           `${dt} 作成 ／ ${d.total}名（口座突合: ${d.matched}名）`;
-        // アップロードエリアは折り畳み
+        // チェックボックスをチェック済みにしてアップロードエリアを折り畳む
+        const cb = $("use-saved-master");
+        if (cb) cb.checked = true;
         setMasterUploadVisible(false);
       } else {
         $("master-saved-badge").classList.add("hidden");
@@ -35,9 +36,7 @@
   }
 
   function setMasterUploadVisible(visible) {
-    masterUploadOpen = visible;
     $("master-upload-area").style.display = visible ? "" : "none";
-    $("toggle-master-upload").textContent = visible ? "保存済みマスタを使う ▲" : "別のファイルを使う ▼";
     // 必須/任意バッジ切り替え
     if (savedMasterExists) {
       $("master-required-badge").classList.toggle("hidden",  true);
@@ -46,10 +45,14 @@
     updateZenginRunBtn();
   }
 
-  $("toggle-master-upload") && document.addEventListener("DOMContentLoaded", () => {
-    $("toggle-master-upload").addEventListener("click", () => {
-      setMasterUploadVisible(!masterUploadOpen);
-    });
+  // チェックボックスのイベント（DOMContentLoaded後にセット）
+  document.addEventListener("DOMContentLoaded", () => {
+    const cb = $("use-saved-master");
+    if (cb) {
+      cb.addEventListener("change", () => {
+        setMasterUploadVisible(!cb.checked);
+      });
+    }
   });
 
   // タブ切り替え時にも状態を反映
@@ -118,7 +121,8 @@
       const res = await fetch("/api/create-master", { method: "POST", body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || res.statusText);
+        const det = err.detail;
+        throw new Error(Array.isArray(det) ? det.map((e) => e.msg || JSON.stringify(e)).join("、") : (det || res.statusText));
       }
       data = await res.json();
     } catch (e) {
@@ -203,7 +207,8 @@
       const res = await fetch("/api/expense-summary", { method: "POST", body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || res.statusText);
+        const det = err.detail;
+        throw new Error(Array.isArray(det) ? det.map((e) => e.msg || JSON.stringify(e)).join("、") : (det || res.statusText));
       }
       data = await res.json();
     } catch (e) {
@@ -280,7 +285,7 @@
 
     const form = new FormData();
     form.append("expense_file", cachedExpenseFile);
-    form.append("master_file", masterFile);
+    if (masterFile) form.append("master_file", masterFile);
     if (zenginRefFile) form.append("zengin_ref_file", zenginRefFile);
     const dateVal = $("zengin-date").value;  // "YYYY-MM-DD" or ""
     if (dateVal) {
@@ -294,7 +299,11 @@
       const res = await fetch("/api/expense-zengin", { method: "POST", body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || res.statusText);
+        const detail = err.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((e) => e.msg || JSON.stringify(e)).join("、")
+          : (detail || res.statusText);
+        throw new Error(msg);
       }
       data = await res.json();
     } catch (e) {
@@ -392,7 +401,8 @@
       const res = await fetch("/api/payroll-summary", { method: "POST", body: form });
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail || res.statusText);
+        const det = err.detail;
+        throw new Error(Array.isArray(det) ? det.map((e) => e.msg || JSON.stringify(e)).join("、") : (det || res.statusText));
       }
       data = await res.json();
     } catch (e) {

@@ -172,11 +172,14 @@
             <div class="saved-master-status">
               <span class="saved-master-icon">✅</span>
               <div>
-                <div class="saved-master-title">保存済みマスタを使用</div>
+                <div class="saved-master-title">保存済みマスタあり</div>
                 <div class="saved-master-detail" id="saved-master-detail"></div>
               </div>
-              <button class="btn-text" id="toggle-master-upload">別のファイルを使う ▼</button>
             </div>
+            <label class="master-checkbox-label">
+              <input type="checkbox" id="use-saved-master" checked>
+              <span>保存済みマスタを使用する</span>
+            </label>
           </div>
           <div id="no-master-warn" class="warn-banner hidden">
             ⚠️ 保存済みマスタがありません。「従業員マスタ作成」タブでマスタを作成するか、CSVをアップロードしてください。

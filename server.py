@@ -8,7 +8,7 @@ from datetime import datetime
 
 from typing import Optional
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -140,7 +140,7 @@ async def expense_zengin(
     expense_file:    UploadFile = File(...),
     master_file:     Optional[UploadFile] = File(default=None),
     zengin_ref_file: Optional[UploadFile] = File(default=None),
-    transfer_date:   Optional[str] = None,
+    transfer_date:   Optional[str] = Form(default=None),
 ):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as et:
         et.write(await expense_file.read())
