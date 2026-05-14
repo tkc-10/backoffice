@@ -108,8 +108,8 @@ class TestEmployeeMasterCreator:
             rows = list(reader)
 
         assert len(rows) == 5
-        expected_cols = {"従業員番号", "氏名", "氏名カナ", "種別", "金融機関コード",
-                         "金融機関名", "支店コード", "支店名", "預金種目", "口座番号", "受取人名（カナ）"}
+        expected_cols = {"従業員番号", "氏名", "受取人名（カナ）",
+                         "金融機関コード", "金融機関名", "支店コード", "支店名", "預金種目", "口座番号"}
         assert expected_cols == set(reader.fieldnames)
 
     def test_bank_info_in_output(self, tmp_path):
@@ -123,7 +123,7 @@ class TestEmployeeMasterCreator:
         assert by_num["E001"]["金融機関コード"] == "0001"
         assert by_num["E001"]["口座番号"] == "1111111"
         assert by_num["E001"]["預金種目"] == "普通"
-        assert by_num["E003"]["種別"] == "アルバイト"
+        assert by_num["E003"]["受取人名（カナ）"] == "サトウ ジロウ"
 
     def test_unmatched_employee_warns(self, tmp_path):
         # 全銀データにないE999を給与CSVに追加したケース

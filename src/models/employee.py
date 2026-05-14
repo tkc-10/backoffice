@@ -43,27 +43,14 @@ class EmployeeMasterRecord:
     bank_info: Optional[BankInfo] = None
 
     def to_dict(self) -> dict:
-        d = {
+        return {
             "従業員番号": self.employee_number,
             "氏名": self.name,
-            "氏名カナ": self.name_kana,
-            "種別": self.employee_type,
-            "金融機関コード": "",
-            "金融機関名": "",
-            "支店コード": "",
-            "支店名": "",
-            "預金種目": "",
-            "口座番号": "",
-            "受取人名（カナ）": "",
+            "受取人名（カナ）": self.bank_info.account_holder_kana if self.bank_info else "",
+            "金融機関コード": self.bank_info.bank_code if self.bank_info else "",
+            "金融機関名": self.bank_info.bank_name if self.bank_info else "",
+            "支店コード": self.bank_info.branch_code if self.bank_info else "",
+            "支店名": self.bank_info.branch_name if self.bank_info else "",
+            "預金種目": self.bank_info.account_type_label if self.bank_info else "",
+            "口座番号": self.bank_info.account_number if self.bank_info else "",
         }
-        if self.bank_info:
-            d.update({
-                "金融機関コード": self.bank_info.bank_code,
-                "金融機関名": self.bank_info.bank_name,
-                "支店コード": self.bank_info.branch_code,
-                "支店名": self.bank_info.branch_name,
-                "預金種目": self.bank_info.account_type_label,
-                "口座番号": self.bank_info.account_number,
-                "受取人名（カナ）": self.bank_info.account_holder_kana,
-            })
-        return d
