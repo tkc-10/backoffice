@@ -36,6 +36,26 @@
 /* Single-column upload */
 .upload-grid-single { grid-template-columns: 1fr; max-width: 400px; }
 
+/* 2-column upload (step3) */
+.upload-grid-2col { grid-template-columns: 1fr 1fr; }
+
+/* sub-label above upload zone */
+.upload-sublabel {
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 0 0 .4rem;
+}
+.badge-required {
+  background: #fee2e2; color: #b91c1c;
+  border-radius: 4px; padding: 1px 5px; font-size: .7rem;
+}
+.badge-optional {
+  background: #e0f2fe; color: #0369a1;
+  border-radius: 4px; padding: 1px 5px; font-size: .7rem;
+}
+.tooltip { cursor: help; }
+
 /* Right-align number cells */
 td.num, th.num { text-align: right; }
 

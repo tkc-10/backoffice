@@ -130,6 +130,7 @@
     $("zengin-section").classList.add("hidden");
     $("zengin-results").classList.add("hidden");
     masterFile = null;
+    zenginRefFile = null;
     cachedExpenseFile = null;
   });
 
@@ -185,8 +186,11 @@
     // ステップ3を表示（経費ファイルをキャッシュして全銀生成に使う）
     cachedExpenseFile = expenseFile;
     masterFile = null;
+    zenginRefFile = null;
     $("master-info").textContent = "";
     $("zone-master").classList.remove("has-file");
+    $("zengin-ref-info").textContent = "";
+    $("zone-zengin-ref").classList.remove("has-file");
     $("zengin-run-btn").disabled = true;
     $("zengin-results").classList.add("hidden");
     $("zengin-section").classList.remove("hidden");
@@ -194,13 +198,23 @@
 
   // ===== タブ2ステップ3: 全銀データ生成 =====
   let masterFile = null;
+  let zenginRefFile = null;
   let cachedExpenseFile = null;  // 集計済みの経費ファイルを保持
 
   setupUploadZone("zone-master", "master", (f) => {
     masterFile = f;
     markFileSelected("zone-master", "master-info", f);
-    $("zengin-run-btn").disabled = false;
+    updateZenginRunBtn();
   });
+
+  setupUploadZone("zone-zengin-ref", "zengin-ref", (f) => {
+    zenginRefFile = f;
+    markFileSelected("zone-zengin-ref", "zengin-ref-info", f);
+  });
+
+  function updateZenginRunBtn() {
+    $("zengin-run-btn").disabled = !masterFile;
+  }
 
   $("zengin-run-btn").addEventListener("click", async () => {
     $("zengin-results").classList.add("hidden");
@@ -211,6 +225,7 @@
     const form = new FormData();
     form.append("expense_file", cachedExpenseFile);
     form.append("master_file", masterFile);
+    if (zenginRefFile) form.append("zengin_ref_file", zenginRefFile);
 
     let data;
     try {
@@ -272,11 +287,18 @@
       </tr>`
     ).join("");
 
+    const dlBtn = $("zengin-download-btn");
     if (data.zengin_b64) {
       attachDownload("zengin-download-btn", data.zengin_b64, data.filename);
-      $("zengin-download-btn").disabled = false;
+      dlBtn.disabled = false;
+      dlBtn.title = data.header_sourced
+        ? "委託者コード・仕向銀行情報は参照全銀ファイルから引き継いでいます"
+        : "参照全銀ファイル未指定のためヘッダは空欄です";
+      dlBtn.textContent = data.header_sourced
+        ? "📥 全銀データをダウンロード（ヘッダ引き継ぎ済）"
+        : "📥 全銀データをダウンロード（⚠️ ヘッダ空欄）";
     } else {
-      $("zengin-download-btn").disabled = true;
+      dlBtn.disabled = true;
     }
 
     $("zengin-results").classList.remove("hidden");

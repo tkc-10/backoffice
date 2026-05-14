@@ -4,6 +4,8 @@ import io
 import os
 import tempfile
 
+from typing import Optional
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -93,8 +95,9 @@ async def expense_summary(expense_file: UploadFile = File(...)):
 
 @app.post("/api/expense-zengin")
 async def expense_zengin(
-    expense_file: UploadFile = File(...),
-    master_file:  UploadFile = File(...),
+    expense_file:   UploadFile = File(...),
+    master_file:    UploadFile = File(...),
+    zengin_ref_file: Optional[UploadFile] = File(default=None),
 ):
     with (
         tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as et,
@@ -143,14 +146,26 @@ async def expense_zengin(
                 "reason":       reason,
             })
 
-    zengin_bytes = zengin_writer.generate(zengin_records) if zengin_records else b""
+    # 参照全銀ファイルからヘッダを抽出（指定された場合）
+    header_info = {}
+    if zengin_ref_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as rt:
+            rt.write(await zengin_ref_file.read())
+            ref_path = rt.name
+        try:
+            header_info = zengin_writer.extract_header_info(ref_path)
+        finally:
+            os.unlink(ref_path)
+
+    zengin_bytes = zengin_writer.generate(zengin_records, header_info) if zengin_records else b""
 
     return {
-        "matched":       matched,
-        "unmatched":     unmatched,
-        "total_amount":  sum(r["total_amount"] for r in matched),
-        "zengin_b64":    base64.b64encode(zengin_bytes).decode(),
-        "filename":      expense_file.filename.replace(".csv", "") + "_経費精算振込.txt",
+        "matched":         matched,
+        "unmatched":       unmatched,
+        "total_amount":    sum(r["total_amount"] for r in matched),
+        "header_sourced":  bool(header_info),
+        "zengin_b64":      base64.b64encode(zengin_bytes).decode(),
+        "filename":        expense_file.filename.replace(".csv", "") + "_経費精算振込.txt",
     }
 
 

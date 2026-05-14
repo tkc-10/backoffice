@@ -161,15 +161,33 @@
         </div>
 
         <section class="card">
-          <h2><span class="step">3</span> 従業員マスタCSVをアップロード</h2>
-          <p class="upload-note">タブ「従業員マスタ作成」でダウンロードしたCSVを使用してください。</p>
-          <div class="upload-grid upload-grid-single">
-            <div class="upload-zone" id="zone-master" data-target="master">
-              <div class="upload-icon">📋</div>
-              <p class="upload-label">従業員マスタ CSV</p>
-              <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>_マスタ.csv</span></p>
-              <input type="file" id="master" accept=".csv" hidden>
-              <div class="file-info" id="master-info"></div>
+          <h2><span class="step">3</span> ファイルをアップロード</h2>
+          <p class="upload-note">
+            従業員マスタCSV（必須）と、参照用全銀ファイル（任意・ヘッダ情報の引き継ぎ用）をアップロードしてください。
+          </p>
+          <div class="upload-grid upload-grid-2col">
+            <div>
+              <p class="upload-sublabel">従業員マスタ CSV <span class="badge-required">必須</span></p>
+              <div class="upload-zone" id="zone-master" data-target="master">
+                <div class="upload-icon">📋</div>
+                <p class="upload-label">従業員マスタ CSV</p>
+                <p class="upload-hint">タブ1でダウンロードしたCSV<br><span>_マスタ.csv</span></p>
+                <input type="file" id="master" accept=".csv" hidden>
+                <div class="file-info" id="master-info"></div>
+              </div>
+            </div>
+            <div>
+              <p class="upload-sublabel">
+                参照全銀ファイル <span class="badge-optional">任意</span>
+                <span class="tooltip" title="給与振込などの正規全銀ファイルをアップロードすると、委託者コード・仕向銀行情報をそのまま引き継いでヘッダを生成します">❓</span>
+              </p>
+              <div class="upload-zone" id="zone-zengin-ref" data-target="zengin-ref">
+                <div class="upload-icon">🏦</div>
+                <p class="upload-label">参照用 全銀ファイル</p>
+                <p class="upload-hint">給与振込等のファイル<br><span>.txt（任意）</span></p>
+                <input type="file" id="zengin-ref" accept=".txt" hidden>
+                <div class="file-info" id="zengin-ref-info"></div>
+              </div>
             </div>
           </div>
         </section>
