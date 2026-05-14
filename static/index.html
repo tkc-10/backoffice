@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>バックオフィス管理ツール</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">🏢</span>
+      <h1>バックオフィス管理ツール</h1>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2><span class="step">1</span> ファイルをアップロード</h2>
+      <div class="upload-grid">
+        <div class="upload-zone" id="zone-salary" data-target="salary">
+          <div class="upload-icon">📄</div>
+          <p class="upload-label">給与一覧 CSV</p>
+          <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.csv</span></p>
+          <input type="file" id="salary" accept=".csv" hidden>
+          <div class="file-info" id="salary-info"></div>
+        </div>
+        <div class="upload-zone" id="zone-zengin" data-target="zengin">
+          <div class="upload-icon">🏦</div>
+          <p class="upload-label">全銀データ</p>
+          <p class="upload-hint">クリックまたはドラッグ＆ドロップ<br><span>.txt</span></p>
+          <input type="file" id="zengin" accept=".txt" hidden>
+          <div class="file-info" id="zengin-info"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card action-card">
+      <button id="run-btn" class="btn-primary" disabled>
+        <span class="btn-icon">✨</span> マスタを作成する
+      </button>
+    </section>
+
+    <div id="spinner" class="spinner hidden">
+      <div class="spinner-ring"></div>
+      <p>処理中...</p>
+    </div>
+
+    <div id="error-banner" class="error-banner hidden"></div>
+
+    <section id="results" class="hidden">
+      <div class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-value" id="m-total">—</div>
+          <div class="metric-label">総件数</div>
+        </div>
+        <div class="metric-card success">
+          <div class="metric-value" id="m-matched">—</div>
+          <div class="metric-label">突合成功</div>
+        </div>
+        <div class="metric-card" id="m-unmatched-card">
+          <div class="metric-value" id="m-unmatched">—</div>
+          <div class="metric-label">未突合</div>
+        </div>
+      </div>
+
+      <div id="warnings-section" class="card hidden">
+        <button class="warnings-toggle" id="warnings-toggle">
+          <span>⚠️ 警告・確認事項</span>
+          <span id="warnings-count" class="badge"></span>
+          <span class="toggle-arrow">▼</span>
+        </button>
+        <ul id="warnings-list" class="warnings-list hidden"></ul>
+      </div>
+
+      <div class="card">
+        <div class="table-header">
+          <h2><span class="step">2</span> マスタデータ</h2>
+          <button id="download-btn" class="btn-secondary">
+            📥 CSVをダウンロード
+          </button>
+        </div>
+        <div class="table-wrap">
+          <table id="master-table">
+            <thead id="table-head"></thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
