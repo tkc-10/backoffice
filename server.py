@@ -1,13 +1,15 @@
 import base64
 import csv
 import io
+import json
 import os
 import tempfile
+from datetime import datetime
 
 from typing import Optional
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.employee_master import EmployeeMasterCreator
@@ -19,10 +21,47 @@ from src.parsers import payroll_csv_parser
 app = FastAPI(title="精算データ処理ツール")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# 保存先パス
+DATA_DIR        = os.path.join(os.path.dirname(__file__), "data")
+MASTER_CSV_PATH = os.path.join(DATA_DIR, "employee_master.csv")
+MASTER_META_PATH= os.path.join(DATA_DIR, "employee_master_meta.json")
+os.makedirs(DATA_DIR, exist_ok=True)
+
+
+def _save_master(csv_bytes: bytes, total: int, matched: int, source_filename: str) -> None:
+    with open(MASTER_CSV_PATH, "wb") as f:
+        f.write(csv_bytes)
+    meta = {
+        "saved_at":       datetime.now().isoformat(timespec="seconds"),
+        "total":          total,
+        "matched":        matched,
+        "source_filename": source_filename,
+    }
+    with open(MASTER_META_PATH, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False)
+
+
+def _load_master_meta() -> Optional[dict]:
+    if not os.path.exists(MASTER_META_PATH):
+        return None
+    try:
+        with open(MASTER_META_PATH, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
 
 @app.get("/")
 def index():
     return FileResponse("static/index.html")
+
+
+@app.get("/api/master-status")
+def master_status():
+    meta = _load_master_meta()
+    if meta is None or not os.path.exists(MASTER_CSV_PATH):
+        return {"exists": False}
+    return {"exists": True, **meta}
 
 
 @app.post("/api/create-master")
@@ -51,13 +90,16 @@ async def create_master(
 
     matched = sum(1 for r in records if r.bank_info is not None)
 
+    # ディスクに永続保存
+    _save_master(csv_bytes, len(records), matched, salary_file.filename)
+
     return {
-        "total": len(records),
-        "matched": matched,
+        "total":    len(records),
+        "matched":  matched,
         "unmatched": len(records) - matched,
         "warnings": warnings,
-        "records": [r.to_dict() for r in records],
-        "csv_b64": base64.b64encode(csv_bytes).decode(),
+        "records":  [r.to_dict() for r in records],
+        "csv_b64":  base64.b64encode(csv_bytes).decode(),
         "filename": salary_file.filename.replace(".csv", "") + "_マスタ.csv",
     }
 
@@ -77,7 +119,6 @@ async def expense_summary(expense_file: UploadFile = File(...)):
 
     total_amount = sum(r.total_amount for r in rows)
 
-    # CSV生成
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(["氏名", "申請件数", "合計精算額（円）"])
@@ -97,17 +138,30 @@ async def expense_summary(expense_file: UploadFile = File(...)):
 @app.post("/api/expense-zengin")
 async def expense_zengin(
     expense_file:    UploadFile = File(...),
-    master_file:     UploadFile = File(...),
+    master_file:     Optional[UploadFile] = File(default=None),
     zengin_ref_file: Optional[UploadFile] = File(default=None),
-    transfer_date:   Optional[str] = None,  # MMDD 形式（例: "0520"）
+    transfer_date:   Optional[str] = None,
 ):
-    with (
-        tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as et,
-        tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as mt,
-    ):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as et:
         et.write(await expense_file.read())
-        mt.write(await master_file.read())
-        expense_path, master_path = et.name, mt.name
+        expense_path = et.name
+
+    # マスタ: アップロードされていれば使用、なければ保存済みを使用
+    if master_file:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as mt:
+            mt.write(await master_file.read())
+            master_path = mt.name
+        delete_master = True
+    elif os.path.exists(MASTER_CSV_PATH):
+        master_path = MASTER_CSV_PATH
+        delete_master = False
+    else:
+        os.unlink(expense_path)
+        raise HTTPException(
+            status_code=422,
+            detail="従業員マスタが見つかりません。マスタCSVをアップロードするか、"
+                   "「従業員マスタ作成」タブでマスタを作成してください。"
+        )
 
     try:
         expense_rows = ExpenseCSVParser(expense_path).parse()
@@ -116,14 +170,13 @@ async def expense_zengin(
         raise HTTPException(status_code=422, detail=str(e))
     finally:
         os.unlink(expense_path)
-        os.unlink(master_path)
+        if delete_master:
+            os.unlink(master_path)
 
-    # 名前正規化（スペース除去）
     def norm(s: str) -> str:
         return s.replace(" ", "").replace("　", "")
 
     master_by_name = {norm(r["name"]): r for r in master_rows}
-
     matched, unmatched = [], []
     zengin_records = []
 
@@ -148,7 +201,6 @@ async def expense_zengin(
                 "reason":       reason,
             })
 
-    # 参照全銀ファイルからヘッダを抽出（指定された場合）
     header_info = {}
     if zengin_ref_file:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as rt:
@@ -165,17 +217,61 @@ async def expense_zengin(
     zengin_bytes = zengin_writer.generate(zengin_records, header_info) if zengin_records else b""
 
     return {
-        "matched":         matched,
-        "unmatched":       unmatched,
-        "total_amount":    sum(r["total_amount"] for r in matched),
-        "header_sourced":  bool(header_info),
-        "zengin_b64":      base64.b64encode(zengin_bytes).decode(),
-        "filename":        expense_file.filename.replace(".csv", "") + "_経費精算振込.txt",
+        "matched":        matched,
+        "unmatched":      unmatched,
+        "total_amount":   sum(r["total_amount"] for r in matched),
+        "header_sourced": bool(header_info),
+        "zengin_b64":     base64.b64encode(zengin_bytes).decode(),
+        "filename":       expense_file.filename.replace(".csv", "") + "_経費精算振込.txt",
+    }
+
+
+@app.post("/api/payroll-summary")
+async def payroll_summary(payroll_file: UploadFile = File(...)):
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
+        tmp.write(await payroll_file.read())
+        tmp_path = tmp.name
+
+    try:
+        result = payroll_csv_parser.parse(tmp_path)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    finally:
+        os.unlink(tmp_path)
+
+    labels = [lbl for lbl, _ in payroll_csv_parser.TARGET_COLUMNS]
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    header_row = ["勤務・賃金設定", "人数"] + result.detected_columns
+    writer.writerow(header_row)
+    totals_row: dict[str, int] = {lbl: 0 for lbl in result.detected_columns}
+    for g in result.groups:
+        row = [g.employee_type, g.employee_count] + [g.amounts.get(lbl, 0) for lbl in result.detected_columns]
+        writer.writerow(row)
+        for lbl in result.detected_columns:
+            totals_row[lbl] += g.amounts.get(lbl, 0)
+    writer.writerow(["合計", sum(g.employee_count for g in result.groups)] +
+                    [totals_row[lbl] for lbl in result.detected_columns])
+    csv_bytes = buf.getvalue().encode("utf-8-sig")
+
+    return {
+        "groups": [
+            {
+                "employee_type":  g.employee_type,
+                "employee_count": g.employee_count,
+                "amounts":        {lbl: g.amounts.get(lbl, 0) for lbl in labels},
+            }
+            for g in result.groups
+        ],
+        "detected_columns": result.detected_columns,
+        "missing_columns":  result.missing_columns,
+        "csv_b64":   base64.b64encode(csv_bytes).decode(),
+        "filename":  payroll_file.filename.replace(".csv", "") + "_給与集計.csv",
     }
 
 
 def _parse_master_csv(path: str) -> list:
-    """従業員マスタCSV（タブ1の出力）を読み込む"""
     ACCOUNT_LABEL = {"普通": "1", "当座": "2", "貯蓄": "4"}
     for enc in ["utf-8-sig", "utf-8", "cp932"]:
         try:
@@ -210,52 +306,6 @@ def _parse_master_csv(path: str) -> list:
             "bank_info":       bank_info,
         })
     return result
-
-
-@app.post("/api/payroll-summary")
-async def payroll_summary(payroll_file: UploadFile = File(...)):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".csv") as tmp:
-        tmp.write(await payroll_file.read())
-        tmp_path = tmp.name
-
-    try:
-        result = payroll_csv_parser.parse(tmp_path)
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
-    finally:
-        os.unlink(tmp_path)
-
-    labels = [lbl for lbl, _ in payroll_csv_parser.TARGET_COLUMNS]
-
-    # CSV生成
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    header_row = ["勤務・賃金設定", "人数"] + result.detected_columns
-    writer.writerow(header_row)
-    totals_row: dict[str, int] = {lbl: 0 for lbl in result.detected_columns}
-    for g in result.groups:
-        row = [g.employee_type, g.employee_count] + [g.amounts.get(lbl, 0) for lbl in result.detected_columns]
-        writer.writerow(row)
-        for lbl in result.detected_columns:
-            totals_row[lbl] += g.amounts.get(lbl, 0)
-    writer.writerow(["合計", sum(g.employee_count for g in result.groups)] +
-                    [totals_row[lbl] for lbl in result.detected_columns])
-    csv_bytes = buf.getvalue().encode("utf-8-sig")
-
-    return {
-        "groups": [
-            {
-                "employee_type":  g.employee_type,
-                "employee_count": g.employee_count,
-                "amounts":        {lbl: g.amounts.get(lbl, 0) for lbl in labels},
-            }
-            for g in result.groups
-        ],
-        "detected_columns": result.detected_columns,
-        "missing_columns":  result.missing_columns,
-        "csv_b64":   base64.b64encode(csv_bytes).decode(),
-        "filename":  payroll_file.filename.replace(".csv", "") + "_給与集計.csv",
-    }
 
 
 if __name__ == "__main__":

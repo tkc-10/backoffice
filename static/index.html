@@ -47,9 +47,12 @@
       </section>
 
       <section class="card action-card">
-        <button id="run-btn" class="btn-primary" disabled>
-          <span class="btn-icon">✨</span> マスタを作成する
-        </button>
+        <div class="action-row">
+          <button id="run-btn" class="btn-primary" disabled>
+            <span class="btn-icon">✨</span> マスタを作成する
+          </button>
+          <span id="master-saved-badge" class="saved-badge hidden">💾 サーバーに保存済み</span>
+        </div>
       </section>
 
       <div id="master-spinner" class="spinner hidden">
@@ -163,15 +166,32 @@
 
         <section class="card">
           <h2><span class="step">3</span> ファイルをアップロード</h2>
-          <p class="upload-note">
-            従業員マスタCSV（必須）と、参照用全銀ファイル（任意・ヘッダ情報の引き継ぎ用）をアップロードしてください。
-          </p>
-          <div class="upload-grid upload-grid-2col">
-            <div>
-              <p class="upload-sublabel">従業員マスタ CSV <span class="badge-required">必須</span></p>
-              <div class="upload-zone" id="zone-master" data-target="master">
-                <div class="upload-icon">📋</div>
-                <p class="upload-label">従業員マスタ CSV</p>
+
+          <!-- 保存済みマスタ表示 -->
+          <div id="saved-master-info" class="saved-master-box hidden">
+            <div class="saved-master-status">
+              <span class="saved-master-icon">✅</span>
+              <div>
+                <div class="saved-master-title">保存済みマスタを使用</div>
+                <div class="saved-master-detail" id="saved-master-detail"></div>
+              </div>
+              <button class="btn-text" id="toggle-master-upload">別のファイルを使う ▼</button>
+            </div>
+          </div>
+          <div id="no-master-warn" class="warn-banner hidden">
+            ⚠️ 保存済みマスタがありません。「従業員マスタ作成」タブでマスタを作成するか、CSVをアップロードしてください。
+          </div>
+
+          <div id="master-upload-area">
+            <p class="upload-note">
+              従業員マスタCSVと、参照用全銀ファイル（任意・ヘッダ情報の引き継ぎ用）をアップロードしてください。
+            </p>
+            <div class="upload-grid upload-grid-2col">
+              <div>
+                <p class="upload-sublabel">従業員マスタ CSV <span id="master-required-badge" class="badge-required">必須</span><span id="master-optional-badge" class="badge-optional hidden">任意</span></p>
+                <div class="upload-zone" id="zone-master" data-target="master">
+                  <div class="upload-icon">📋</div>
+                  <p class="upload-label">従業員マスタ CSV</p>
                 <p class="upload-hint">タブ1でダウンロードしたCSV<br><span>_マスタ.csv</span></p>
                 <input type="file" id="master" accept=".csv" hidden>
                 <div class="file-info" id="master-info"></div>
@@ -191,6 +211,7 @@
               </div>
             </div>
           </div>
+          </div><!-- /master-upload-area -->
         </section>
 
         <section class="card action-card">

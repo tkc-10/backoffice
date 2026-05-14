@@ -1,6 +1,60 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
+  // ===== 保存済みマスタ状態 =====
+  let savedMasterExists = false;
+  let masterUploadOpen  = false;  // 「別のファイルを使う」展開状態
+
+  async function loadMasterStatus() {
+    try {
+      const res = await fetch("/api/master-status");
+      const d   = await res.json();
+      savedMasterExists = d.exists;
+
+      if (d.exists) {
+        // Tab1 バッジ
+        $("master-saved-badge").classList.remove("hidden");
+        // Tab2 ステップ3
+        $("saved-master-info").classList.remove("hidden");
+        $("no-master-warn").classList.add("hidden");
+        const dt = new Date(d.saved_at).toLocaleString("ja-JP", {
+          year: "numeric", month: "2-digit", day: "2-digit",
+          hour: "2-digit", minute: "2-digit",
+        });
+        $("saved-master-detail").textContent =
+          `${dt} 作成 ／ ${d.total}名（口座突合: ${d.matched}名）`;
+        // アップロードエリアは折り畳み
+        setMasterUploadVisible(false);
+      } else {
+        $("master-saved-badge").classList.add("hidden");
+        $("saved-master-info").classList.add("hidden");
+        $("no-master-warn").classList.remove("hidden");
+        setMasterUploadVisible(true);
+      }
+    } catch (_) { /* サーバー未起動時は無視 */ }
+  }
+
+  function setMasterUploadVisible(visible) {
+    masterUploadOpen = visible;
+    $("master-upload-area").style.display = visible ? "" : "none";
+    $("toggle-master-upload").textContent = visible ? "保存済みマスタを使う ▲" : "別のファイルを使う ▼";
+    // 必須/任意バッジ切り替え
+    if (savedMasterExists) {
+      $("master-required-badge").classList.toggle("hidden",  true);
+      $("master-optional-badge").classList.toggle("hidden", !visible);
+    }
+    updateZenginRunBtn();
+  }
+
+  $("toggle-master-upload") && document.addEventListener("DOMContentLoaded", () => {
+    $("toggle-master-upload").addEventListener("click", () => {
+      setMasterUploadVisible(!masterUploadOpen);
+    });
+  });
+
+  // タブ切り替え時にも状態を反映
+  document.addEventListener("DOMContentLoaded", loadMasterStatus);
+
   // ===== タブ切り替え =====
   document.querySelectorAll(".tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -76,6 +130,7 @@
     }
 
     renderMasterResults(data);
+    loadMasterStatus();  // 保存済みバッジ・経費タブの状態を更新
   });
 
   function renderMasterResults(data) {
@@ -191,9 +246,9 @@
     $("zone-master").classList.remove("has-file");
     $("zengin-ref-info").textContent = "";
     $("zone-zengin-ref").classList.remove("has-file");
-    $("zengin-run-btn").disabled = true;
     $("zengin-results").classList.add("hidden");
     $("zengin-section").classList.remove("hidden");
+    loadMasterStatus();  // 保存済みマスタの最新状態を反映
   }
 
   // ===== タブ2ステップ3: 全銀データ生成 =====
@@ -213,7 +268,8 @@
   });
 
   function updateZenginRunBtn() {
-    $("zengin-run-btn").disabled = !masterFile;
+    // 保存済みマスタがあるか、ファイルがアップロード済みであれば有効
+    $("zengin-run-btn").disabled = !savedMasterExists && !masterFile;
   }
 
   $("zengin-run-btn").addEventListener("click", async () => {
