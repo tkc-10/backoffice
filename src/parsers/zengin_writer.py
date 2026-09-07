@@ -57,7 +57,13 @@ def _make_header(info: dict) -> bytes:
     return bytes(r)
 
 
-def _make_data_record(bank_info: BankInfo, amount: int, customer_code1: str) -> bytes:
+def _make_data_record(
+    bank_info: BankInfo,
+    amount: int,
+    customer_code1: str,
+    sending_bank_code: str = "",
+    sending_branch_code: str = "",
+) -> bytes:
     acct_code = _account_type_code(bank_info.account_type)
     r = bytearray(RECORD_LENGTH)
     r[0:1]    = b"2"
@@ -73,8 +79,9 @@ def _make_data_record(bank_info: BankInfo, amount: int, customer_code1: str) -> 
     r[90:91]  = b"0"
     r[91:101] = _field(customer_code1,                     10)
     r[101:111]= b" " * 10
-    r[111:115]= b" " * 4
-    r[115:118]= b" " * 3
+    # 振込銀行番号・振込支店番号: ヘッダの仕向銀行情報と一致させる
+    r[111:115]= _code_field(sending_bank_code,   4) if sending_bank_code   else b" " * 4
+    r[115:118]= _code_field(sending_branch_code, 3) if sending_branch_code else b" " * 3
     r[118:120]= b" " * 2
     return bytes(r)
 
@@ -104,10 +111,13 @@ def generate(
     header_info: ヘッダ情報。省略時は空欄ヘッダ。
                  参照全銀ファイルから extract_header_info() で取得推奨。
     """
-    lines = [_make_header(header_info or {})]
+    info = header_info or {}
+    lines = [_make_header(info)]
+    sending_bank   = info.get("bank_code",   "")
+    sending_branch = info.get("branch_code", "")
     count, total = 0, 0
     for bank_info, amount, code in records:
-        lines.append(_make_data_record(bank_info, amount, code))
+        lines.append(_make_data_record(bank_info, amount, code, sending_bank, sending_branch))
         count += 1
         total += amount
     lines.append(_make_trailer(count, total))
